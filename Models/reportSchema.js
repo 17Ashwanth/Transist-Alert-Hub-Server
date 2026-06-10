@@ -32,7 +32,6 @@ const reportSchema = mongoose.Schema({
         require:true
     }
 })
-
 //create modal
 const reports = mongoose.model("reports",reportSchema)
 
