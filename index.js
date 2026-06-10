@@ -7,6 +7,14 @@ const express = require('express')
 //3) import cors
 const cors = require('cors')
 
+const fs = require('fs')
+
+if (!fs.existsSync('./uploads')) {
+    fs.mkdirSync('./uploads', { recursive: true })
+}
+
+console.log("Uploads exists:", fs.existsSync('./uploads'))
+
 // import router
 const router = require('./Routing/router')
 
