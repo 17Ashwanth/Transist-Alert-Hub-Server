@@ -13,7 +13,7 @@
 // ============================================================
 
 // Step 1: import cloudinary (the SDK - Software Development Kit)
-const cloudinary = require('cloudinary').v2
+const cloudinary = require('cloudinary')
 
 // Step 2: import the special storage engine that links multer + cloudinary
 const { CloudinaryStorage } = require('multer-storage-cloudinary')
