@@ -29,7 +29,7 @@ const reportSchema = mongoose.Schema({
     },
     username:{
         type: String,
-        require:true
+        require:false
     }
 })
 //create modal

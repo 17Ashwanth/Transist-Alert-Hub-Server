@@ -29,7 +29,7 @@ const solvedReportSchema = mongoose.Schema({
     },
     username:{
         type: String,
-        require:true
+        require:false
     }
 })
 
