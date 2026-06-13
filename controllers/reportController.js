@@ -1,24 +1,42 @@
 const reports = require('../Models/reportSchema')
+const cloudinary = require('cloudinary')
+
+// Configure cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+})
 
 exports.addReport = async (req, res) => {
     console.log('inside the report controller')
-    console.log('req.file:', req.file)
+    console.log('req.file:', req.file ? 'FILE EXISTS' : 'NO FILE')
 
     if(!req.file) {
-        console.log('ERROR: req.file is undefined - image upload to Cloudinary failed')
-        return res.status(500).json('Image upload to Cloudinary failed')
+        return res.status(500).json('No image file received')
     }
 
-    const userId = req.payload
-    console.log('userId:', userId)
-
-    const reportImage = req.file.path
-    console.log('reportImage URL:', reportImage)
-
-    const { title, date, location, overview } = req.body
-    console.log(`title:${title}, location:${location}, overview:${overview}`)
-
     try {
+        // Upload to cloudinary directly from memory buffer
+        const uploadResult = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream(
+                { folder: 'transist_alert_hub' },
+                (error, result) => {
+                    if (error) {
+                        console.log('Cloudinary upload error:', error)
+                        reject(error)
+                    } else {
+                        console.log('Cloudinary upload success:', result.secure_url)
+                        resolve(result)
+                    }
+                }
+            ).end(req.file.buffer)
+        })
+
+        const reportImage = uploadResult.secure_url
+        const userId = req.payload
+        const { title, date, location, overview } = req.body
+
         const report = new reports({
             title,
             date,
@@ -29,9 +47,10 @@ exports.addReport = async (req, res) => {
         })
         await report.save()
         res.status(200).json(report)
+
     } catch (err) {
-        console.log('DB SAVE ERROR:', err)
-        res.status(401).json(`Register request Failed due to,${err}`)
+        console.log('ERROR:', err)
+        res.status(500).json(`Failed: ${err.message}`)
     }
 }
 
@@ -46,14 +65,7 @@ exports.getHomeReports = async (req, res) => {
 
 exports.getAllreports = async (req, res) => {
     const searchKey = req.query.search
-    console.log(searchKey)
-
-    const query = {
-        title: {
-            $regex: searchKey
-        }
-    }
-
+    const query = { title: { $regex: searchKey } }
     try {
         const allreports = await reports.find(query)
         res.status(200).json(allreports)
@@ -77,9 +89,23 @@ exports.editUserReport = async (req, res) => {
     const userId = req.payload
     const { title, date, location, overview, reportImage } = req.body
 
-    const uploadedReportImage = req.file ? req.file.path : reportImage
-
     try {
+        let uploadedReportImage = reportImage
+
+        // If new image uploaded, upload to cloudinary
+        if(req.file) {
+            const uploadResult = await new Promise((resolve, reject) => {
+                cloudinary.uploader.upload_stream(
+                    { folder: 'transist_alert_hub' },
+                    (error, result) => {
+                        if (error) reject(error)
+                        else resolve(result)
+                    }
+                ).end(req.file.buffer)
+            })
+            uploadedReportImage = uploadResult.secure_url
+        }
+
         const updateReport = await reports.findByIdAndUpdate(
             { _id: id },
             { title, date, location, overview, reportImage: uploadedReportImage, userId },
@@ -89,6 +115,7 @@ exports.editUserReport = async (req, res) => {
             res.status(200).json(updateReport)
         )
     } catch (err) {
+        console.log('ERROR:', err)
         res.status(401).json(err)
     }
 }
