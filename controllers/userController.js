@@ -1,22 +1,38 @@
-// ============================================================
-// userController.js  — UPDATED TO USE CLOUDINARY
-// ============================================================
-// WHAT CHANGED vs the old file:
-//   Only ONE small change in the editUser function:
-//   OLD: profileImage = req.file.filename  (local filename)
-//   NEW: profileImage = req.file.path      (full Cloudinary URL)
-//
-// Everything else (register, login) is exactly the same.
-// ============================================================
-
 const users = require('../Models/userSchema')
 const jwt = require('jsonwebtoken')
+const cloudinary = require('cloudinary').v2
 
-// ---------------------------------------------------------------
-// REGISTER a new user (no image upload here — no changes)
-// ---------------------------------------------------------------
+// Configure cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+})
+
+// Helper function to upload buffer to cloudinary
+const uploadToCloudinary = (buffer) => {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { 
+                folder: 'transist_alert_hub',
+                timeout: 60000
+            },
+            (error, result) => {
+                if (error) {
+                    console.log('Cloudinary upload error:', error)
+                    reject(error)
+                } else {
+                    console.log('Cloudinary upload success:', result.secure_url)
+                    resolve(result)
+                }
+            }
+        )
+        stream.end(buffer)
+    })
+}
+
 exports.register = async (req, res) => {
-    console.log(`inside controller register function`);
+    console.log('inside controller register function')
     const { username, email, password } = req.body
     try {
         const existUser = await users.findOne({ email })
@@ -37,17 +53,12 @@ exports.register = async (req, res) => {
     }
 }
 
-// ---------------------------------------------------------------
-// LOGIN (no image upload here — no changes)
-// ---------------------------------------------------------------
 exports.login = async (req, res) => {
-    console.log(`inside controller login function`);
+    console.log('inside controller login function')
     const { email, password } = req.body
-
     try {
         const existsUser = await users.findOne({ email, password })
-        console.log(existsUser);
-
+        console.log(existsUser)
         if (existsUser) {
             const token = jwt.sign({ userId: existsUser._id }, "supersecretekey12345")
             res.status(200).json({
@@ -62,19 +73,21 @@ exports.login = async (req, res) => {
     }
 }
 
-// ---------------------------------------------------------------
-// EDIT user profile (profile image upload)
-// ---------------------------------------------------------------
 exports.editUser = async (req, res) => {
     const userId = req.payload
     const { username, email, password, profile } = req.body
 
-    // CHANGED: was req.file.filename  →  now req.file.path
-    // If a new profile image was uploaded → use the Cloudinary URL (req.file.path)
-    // If no new image uploaded → keep the existing profile URL from req.body
-    const profileImage = req.file ? req.file.path : profile
-
     try {
+        let profileImage = profile  // keep existing image by default
+
+        // If new profile image uploaded, upload to Cloudinary
+        if (req.file) {
+            console.log('Uploading profile image to Cloudinary...')
+            const uploadResult = await uploadToCloudinary(req.file.buffer)
+            profileImage = uploadResult.secure_url
+            console.log('Profile image uploaded:', profileImage)
+        }
+
         const updateUser = await users.findByIdAndUpdate(
             { _id: userId },
             { username, email, password, profile: profileImage },
@@ -83,6 +96,7 @@ exports.editUser = async (req, res) => {
         await updateUser.save()
         res.status(200).json(updateUser)
     } catch (err) {
+        console.log('ERROR:', err)
         res.status(401).json(err)
     }
 }
