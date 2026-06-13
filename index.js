@@ -46,7 +46,7 @@ tahServer.use(router)
 //       because images are now stored on Cloudinary, not on this server.
 
 // 7) Set port (from .env or default 5000)
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 10000
 
 // 8) Start server
 tahServer.listen(PORT, () => {
