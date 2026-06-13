@@ -1,5 +1,5 @@
 const reports = require('../Models/reportSchema')
-const cloudinary = require('cloudinary')
+const cloudinary = require('cloudinary').v2
 
 // Configure cloudinary
 cloudinary.config({
@@ -8,30 +8,39 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 })
 
+// Helper function to upload buffer to cloudinary
+const uploadToCloudinary = (buffer) => {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { 
+                folder: 'transist_alert_hub',
+                timeout: 60000
+            },
+            (error, result) => {
+                if (error) {
+                    console.log('Cloudinary upload error:', error)
+                    reject(error)
+                } else {
+                    console.log('Cloudinary upload success:', result.secure_url)
+                    resolve(result)
+                }
+            }
+        )
+        stream.end(buffer)
+    })
+}
+
 exports.addReport = async (req, res) => {
     console.log('inside the report controller')
-    console.log('req.file:', req.file ? 'FILE EXISTS' : 'NO FILE')
 
     if(!req.file) {
         return res.status(500).json('No image file received')
     }
 
     try {
-        // Upload to cloudinary directly from memory buffer
-        const uploadResult = await new Promise((resolve, reject) => {
-            cloudinary.uploader.upload_stream(
-                { folder: 'transist_alert_hub' },
-                (error, result) => {
-                    if (error) {
-                        console.log('Cloudinary upload error:', error)
-                        reject(error)
-                    } else {
-                        console.log('Cloudinary upload success:', result.secure_url)
-                        resolve(result)
-                    }
-                }
-            ).end(req.file.buffer)
-        })
+        console.log('Starting Cloudinary upload...')
+        const uploadResult = await uploadToCloudinary(req.file.buffer)
+        console.log('Cloudinary done:', uploadResult.secure_url)
 
         const reportImage = uploadResult.secure_url
         const userId = req.payload
@@ -49,7 +58,7 @@ exports.addReport = async (req, res) => {
         res.status(200).json(report)
 
     } catch (err) {
-        console.log('ERROR:', err)
+        console.log('FULL ERROR:', err)
         res.status(500).json(`Failed: ${err.message}`)
     }
 }
@@ -92,17 +101,8 @@ exports.editUserReport = async (req, res) => {
     try {
         let uploadedReportImage = reportImage
 
-        // If new image uploaded, upload to cloudinary
         if(req.file) {
-            const uploadResult = await new Promise((resolve, reject) => {
-                cloudinary.uploader.upload_stream(
-                    { folder: 'transist_alert_hub' },
-                    (error, result) => {
-                        if (error) reject(error)
-                        else resolve(result)
-                    }
-                ).end(req.file.buffer)
-            })
+            const uploadResult = await uploadToCloudinary(req.file.buffer)
             uploadedReportImage = uploadResult.secure_url
         }
 
