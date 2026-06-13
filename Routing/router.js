@@ -28,7 +28,15 @@ const router = new express.Router()
     //b) login
             router.post('/user/login',userController.login)
     //c) Add Report
-        router.post('/report/add',jwtMiddleWare,multerConfig.single("reportImage"),reportController.addReport)
+        outer.post('/report/add', jwtMiddleWare, (req, res, next) => {
+    multerConfig.single("reportImage")(req, res, (err) => {
+        if (err) {
+            console.log('MULTER ERROR:', err)
+            return res.status(500).json(err.message)
+        }
+        next()
+    })
+}, reportController.addReport)
 
      // d- home report
      router.get("/report/home-report",reportController.getHomeReports)
